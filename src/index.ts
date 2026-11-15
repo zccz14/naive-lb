@@ -93,17 +93,32 @@ export default {
 
 /* ------------------------------ request side ------------------------------ */
 
-function textFromParts(content: unknown): string {
+/**
+ * Responses message content → Chat content: a plain string, or a parts array
+ * when the message carries images. NaiveAI accepts `image_url` parts and runs
+ * them through its own describer before the model sees anything, so an image
+ * must survive this conversion instead of being flattened to text.
+ */
+function chatContent(content: unknown): any {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
-  let out = "";
+  const parts: any[] = [];
   for (const part of content) {
     if (!part || typeof part !== "object") continue;
     const anyPart = part as Record<string, unknown>;
-    if (typeof anyPart.text === "string") out += anyPart.text;
-    else if (typeof anyPart.output === "string") out += anyPart.output;
+    if (typeof anyPart.text === "string") {
+      parts.push({ type: "text", text: anyPart.text });
+    } else if (typeof anyPart.image_url === "string") {
+      parts.push({ type: "image_url", image_url: { url: anyPart.image_url } });
+    } else if (anyPart.image_url && typeof anyPart.image_url === "object") {
+      parts.push({ type: "image_url", image_url: anyPart.image_url });
+    }
   }
-  return out;
+  if (parts.length === 0) return "";
+  if (parts.every((part) => part.type === "text")) {
+    return parts.map((part) => part.text).join("");
+  }
+  return parts;
 }
 
 /** Responses request body → NaiveAI Chat Completions request body. */
@@ -148,7 +163,7 @@ function toChatRequest(body: Record<string, any>): Record<string, any> {
             : item.role === "system" || item.role === "developer"
               ? "system"
               : "user";
-        messages.push({ role, content: textFromParts(item.content) });
+        messages.push({ role, content: chatContent(item.content) });
       } else if (type === "function_call") {
         pushToolCall(item);
       } else if (type === "function_call_output") {
