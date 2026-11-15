@@ -1,0 +1,9 @@
+name = "naive-lb"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[vars]
+# Override per environment if NaiveAI moves; the key and the gateway token are
+# Worker secrets (wrangler secret put), never variables.
+NAIVE_BASE = "https://api.naive.ai/v1"
